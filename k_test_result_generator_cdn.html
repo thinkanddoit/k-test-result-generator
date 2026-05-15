@@ -1,0 +1,1768 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>테스트 결과서 생성기</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+/* ── 라이트 모드 (케이뱅크 브랜드) ─────────────────────── */
+  :root {
+    --bg:          #F7F9FD;
+    --surface:     #FFFFFF;
+    --surface2:    #EDF1F7;
+    --border:      #D8E0EE;
+    --accent:      #0114A7;   /* Kbank Primary */
+    --accent2:     #4262FF;   /* Kbank Secondary */
+    --accent-soft: rgba(1,20,167,0.06);
+    --text:        #0A0F2E;
+    --text-muted:  #6B7BAD;
+    --success:     #00A86B;
+    --danger:      #E53A3A;
+    --radius:      10px;
+    --shadow:      0 2px 12px rgba(1,20,167,0.08);
+    color-scheme:  light;
+  }
+
+  /* ── 다크 모드 ──────────────────────────────────────────── */
+  [data-theme="dark"] {
+    --bg:          #07091C;
+    --surface:     #0D1235;
+    --surface2:    #131A45;
+    --border:      #1C2660;
+    --accent:      #4262FF;   /* Secondary가 다크에서 메인 */
+    --accent2:     #7B9AFF;
+    --accent-soft: rgba(66,98,255,0.10);
+    --text:        #E0E6F1;
+    --text-muted:  #7B8EC4;
+    --success:     #00CC7A;
+    --danger:      #F06060;
+    --shadow:      0 2px 16px rgba(0,0,0,0.4);
+    color-scheme:  dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  header {
+    max-width: 860px;
+    margin: 0 auto 36px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Pretendard', sans-serif;
+    font-weight: 800; font-size: 20px; color: #fff;
+    flex-shrink: 0;
+    box-shadow: var(--shadow);
+    letter-spacing: -1px;
+  }
+
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  h1 span { color: var(--text-muted); font-weight: 400; font-size: 14px; display: block; margin-top: 2px; }
+
+  .theme-toggle {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; cursor: pointer; flex-shrink: 0;
+    transition: border-color 0.2s, transform 0.2s, background 0.25s;
+    box-shadow: var(--shadow);
+  }
+  .theme-toggle:hover { border-color: var(--accent); transform: scale(1.12) rotate(15deg); }
+
+  .main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; transition: filter 0.3s, opacity 0.3s; }
+  .main.dimmed { filter: blur(3px); opacity: 0.35; pointer-events: none; user-select: none; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    transition: background 0.25s, border-color 0.25s;
+  }
+
+  .card-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--accent2); margin-bottom: 18px;
+  }
+
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .meta-grid { grid-template-columns: 1fr; } }
+
+  .field label { display: block; font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.5px; }
+  .tc-date-toggle-wrap {
+    display: flex; align-items: center; gap: 6px; width: fit-content;
+    margin-top: 9px; cursor: pointer; letter-spacing: 0;
+  }
+  .tc-date-toggle-wrap input[type="checkbox"] {
+    width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer;
+    flex-shrink: 0; margin: 0; vertical-align: middle; position: relative; top: -1px;
+  }
+  .tc-date-toggle-label { font-size: 11px; font-weight: 600; color: var(--text-muted); transition: color 0.2s; }
+  .tc-date-toggle-wrap input:checked ~ .tc-date-toggle-label { color: var(--accent); }
+  .tc-date-badge {
+    font-size: 11px; color: var(--text-muted); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px;
+    margin-left: 4px; flex-shrink: 0;
+  }
+
+  .field input, .field textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--text);
+    font-family: 'Pretendard', sans-serif; font-size: 14px; padding: 10px 13px;
+    outline: none; transition: border-color 0.2s; resize: vertical;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--accent); }
+
+  .tc-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .tc-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+  .tc-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; cursor: pointer; user-select: none;
+  }
+
+  .tc-num {
+    width: 26px; height: 26px; border-radius: 6px; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Pretendard', sans-serif; font-size: 12px; font-weight: 700; flex-shrink: 0; color: #fff;
+  }
+
+  .tc-title-preview { flex: 1; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-title-preview.empty { color: var(--text-muted); font-style: italic; }
+
+  .tc-badge { font-size: 11px; color: var(--text-muted); background: var(--border); border-radius: 4px; padding: 3px 8px; flex-shrink: 0; }
+
+  .tc-delete {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    padding: 4px 6px; border-radius: 5px; font-size: 16px; line-height: 1;
+    transition: color 0.15s, background 0.15s; flex-shrink: 0;
+  }
+  .tc-delete:hover { color: var(--danger); background: rgba(240,96,96,0.1); }
+
+  .tc-body { border-top: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .tc-body.collapsed { display: none; }
+  .cf-manager { margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cf-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; align-items: center; }
+  .cf-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 6px; padding: 3px 10px 3px 10px; font-size: 12px; color: var(--accent2); }
+  .cf-chip button { background: none; border: none; color: var(--accent2); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 0 0 3px; opacity: 0.6; font-family: inherit; }
+  .cf-chip button:hover { opacity: 1; }
+  .cf-add-row { display: flex; gap: 8px; align-items: center; }
+  .cf-add-row input { flex: 1; max-width: 240px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'Pretendard', sans-serif; font-size: 13px; padding: 7px 11px; outline: none; transition: border-color 0.2s; }
+  .cf-add-row input:focus { border-color: var(--accent); }
+  .cf-empty-hint { font-size: 11.5px; color: var(--text-muted); }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .dropzone-icon { font-size: 24px; margin-bottom: 6px; }
+  .dropzone-text { font-size: 13px; color: var(--text-muted); }
+  .dropzone-text span { color: var(--accent2); font-weight: 500; }
+
+  #clipboardFloat {
+    position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
+    background: var(--card); border: 1.5px solid var(--accent);
+    border-radius: 12px; padding: 14px 12px 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+    z-index: 900; display: none; flex-direction: column; align-items: center; gap: 8px;
+    min-width: 130px;
+  }
+  #clipboardFloat.visible { display: flex; animation: cfFloatIn 0.2s ease; }
+  @keyframes cfFloatIn {
+    from { opacity: 0; transform: translateY(-50%) translateX(16px); }
+    to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+  }
+  .cf-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .cf-img-wrap {
+    width: 110px; border-radius: 8px; overflow: hidden; cursor: grab;
+    border: 1.5px dashed var(--accent);
+  }
+  .cf-img-wrap:active { cursor: grabbing; }
+  .cf-img-wrap img { width: 100%; display: block; max-height: 160px; object-fit: contain; }
+  .cf-hint { font-size: 10.5px; color: var(--text-muted); text-align: center; line-height: 1.4; }
+  .cf-close {
+    position: absolute; top: 6px; right: 6px; width: 18px; height: 18px;
+    background: rgba(0,0,0,0.25); border: none; border-radius: 50%; color: #fff;
+    font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .cf-close:hover { background: var(--danger); }
+
+  .img-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .img-drag-hint { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); margin-top: 7px; }
+  .img-thumb { position: relative; width: 110px; height: 196px; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
+  .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-thumb-del {
+    position: absolute; top: 3px; right: 3px; width: 18px; height: 18px;
+    background: rgba(0,0,0,0.7); border: none; border-radius: 50%; color: #fff;
+    font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .img-thumb-edit {
+    position: absolute; bottom: 3px; right: 3px; width: 22px; height: 22px;
+    background: var(--accent); border: none; border-radius: 5px; color: #fff;
+    font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .img-thumb:hover .img-thumb-edit { opacity: 1; }
+  .img-thumb.annotated { border-color: #E53A3A; box-shadow: 0 0 0 2px rgba(229,58,58,0.3); }
+  .img-thumb { cursor: grab; }
+  .img-thumb.dragging { opacity: 0.35; cursor: grabbing; }
+  .img-thumb.drag-over { border: 2px dashed var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+  /* ── 어노테이션 모달 ─────────────────────────────────────── */
+  .annot-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 10000; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .annot-overlay.open { display: flex; }
+  .annot-modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    display: flex; flex-direction: column; max-width: 95vw; max-height: 95vh;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+  }
+  .annot-toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 14px 16px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .annot-toolbar-title { font-weight: 700; font-size: 14px; margin-right: auto; }
+  .annot-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font-family: 'Pretendard', sans-serif; font-size: 13px;
+    padding: 7px 13px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .annot-btn:hover { border-color: var(--accent); }
+  .annot-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .annot-btn.primary:hover { opacity: 0.88; }
+  .annot-btn.danger { border-color: #E53A3A; color: #E53A3A; }
+  .annot-mode { display: flex; gap: 3px; padding: 0 8px; border-right: 1px solid var(--border); margin-right: 4px; }
+  .annot-mode-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font-family: 'Pretendard', sans-serif; font-size: 12px;
+    padding: 5px 10px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .annot-mode-btn:hover:not(.active) { border-color: var(--accent); }
+  .annot-mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .annot-canvas-wrap {
+    overflow: auto; flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 16px; min-height: 0;
+    background: #1C1C2E;
+  }
+  #annotCanvas { cursor: crosshair; display: block; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+  .annot-hint { text-align: center; font-size: 12px; color: var(--text-muted); padding: 10px 16px 14px; flex-shrink: 0; }
+  .annot-colors { display: flex; align-items: center; gap: 5px; padding: 0 6px; border-right: 1px solid var(--border); margin-right: 4px; }
+  .color-swatch {
+    width: 22px; height: 22px; border-radius: 50%; padding: 0; border: 2.5px solid transparent;
+    cursor: pointer; transition: transform 0.15s, border-color 0.15s; flex-shrink: 0;
+  }
+  .color-swatch:hover { transform: scale(1.2); }
+  .color-swatch.active { border-color: var(--text); box-shadow: 0 0 0 1px var(--surface); }
+  .color-custom {
+    width: 28px; height: 28px; padding: 2px; border: 1.5px solid var(--border);
+    border-radius: 6px; cursor: pointer; background: var(--surface2); flex-shrink: 0;
+  }
+  .annot-thickness {
+    display: flex; align-items: center; gap: 7px;
+    padding: 0 10px; border-right: 1px solid var(--border); margin-right: 4px;
+  }
+  .annot-thickness input[type="range"] {
+    width: 72px; accent-color: var(--accent); cursor: pointer;
+  }
+  .thickness-preview {
+    width: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .thickness-preview span {
+    display: block; width: 100%; background: var(--text); border-radius: 99px;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; border: none;
+    border-radius: 8px; font-family: 'Pretendard', sans-serif; font-size: 14px;
+    font-weight: 500; cursor: pointer; padding: 11px 18px; transition: all 0.15s;
+  }
+  .btn-ghost { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent2); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-lg { padding: 13px 28px; font-size: 15px; font-weight: 700; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .save-section { display: flex; justify-content: flex-end; }
+  .empty-tc { text-align: center; padding: 32px; color: var(--text-muted); font-size: 14px; }
+  .empty-tc .big { font-size: 32px; margin-bottom: 8px; }
+
+  .toast {
+    position: fixed; bottom: 30px; right: 30px; background: var(--success);
+    color: #fff; padding: 13px 20px; border-radius: 9px; font-size: 14px; font-weight: 500;
+    opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; z-index: 9999;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--danger); }
+
+  .chevron { margin-left: auto; color: var(--text-muted); transition: transform 0.2s; font-size: 13px; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .progress-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9998; backdrop-filter: blur(4px);
+  }
+  .progress-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px 36px; text-align: center; min-width: 220px;
+  }
+  .progress-box .spin { font-size: 32px; animation: spin 1s linear infinite; display: block; margin-bottom: 12px; }
+  .progress-box p { font-size: 14px; color: var(--text-muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .filename-hint { font-size: 12px; color: var(--text-muted); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .filename-hint code { color: var(--accent); font-weight: 600; font-size: 12px; font-family: 'Pretendard', monospace; }
+
+  .btn-json-save {
+    margin-left: 8px;
+    background: var(--surface); border: 1.5px solid var(--accent);
+    color: var(--accent2); border-radius: 8px;
+    font-family: 'Pretendard', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; padding: 8px 15px;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.15s; box-shadow: var(--shadow); flex-shrink: 0;
+  }
+  .btn-json-save:hover { background: var(--accent-soft); }
+  .dirty-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--danger);
+    display: none; flex-shrink: 0;
+  }
+  .btn-json-save.dirty .dirty-dot { display: block; }
+
+  .welcome-banner {
+    max-width: 860px; margin: 16px auto 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: var(--radius);
+    padding: 18px 22px; display: flex; align-items: center; gap: 16px;
+    box-shadow: var(--shadow); transition: opacity 0.25s, transform 0.25s;
+  }
+  .wb-icon { font-size: 26px; flex-shrink: 0; }
+  .wb-body { flex: 1; }
+  .wb-body strong { font-size: 14px; font-weight: 700; display: block; margin-bottom: 2px; }
+  .wb-body span { font-size: 12px; color: var(--text-muted); }
+  .wb-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  @media (max-width: 600px) { .welcome-banner { flex-direction: column; align-items: flex-start; } }
+
+  .save-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; text-align: right; }
+
+  .fab-save {
+    position: fixed; bottom: 28px; right: 28px; z-index: 9000;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 50px;
+    font-family: 'Pretendard', sans-serif; font-size: 14px; font-weight: 700;
+    padding: 13px 22px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 6px 24px rgba(1,20,167,0.35);
+    opacity: 0; transform: translateY(16px); pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .fab-save.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .fab-save:hover { background: var(--accent2); box-shadow: 0 8px 28px rgba(1,20,167,0.45); }
+
+  .quality-setting { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .quality-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+  .quality-options { display: flex; gap: 8px; }
+  .quality-opt { flex: 1; cursor: pointer; }
+  .quality-opt input[type="radio"] { display: none; }
+  .quality-card {
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 3px; transition: all 0.15s;
+    background: var(--surface2);
+  }
+  .quality-opt input:checked + .quality-card {
+    border-color: var(--accent); background: var(--accent-soft);
+  }
+  .quality-opt:hover .quality-card { border-color: var(--accent2); }
+  .quality-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .quality-opt input:checked + .quality-card .quality-name { color: var(--accent2); }
+  .quality-px { font-size: 12px; font-weight: 600; color: var(--accent2); }
+  .quality-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; }
+  .quality-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; line-height: 1.6; }
+  @media (max-width: 600px) { .quality-options { flex-direction: column; } }
+
+  .btn-guide {
+    background: transparent; border: 1.5px solid var(--border);
+    color: var(--text-muted); border-radius: 8px;
+    font-family: 'Pretendard', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; padding: 8px 13px; margin-left: auto;
+    display: flex; align-items: center; gap: 5px;
+    transition: all 0.15s; flex-shrink: 0; text-decoration: none;
+  }
+  .btn-guide:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── 첫 방문 배너 ── */
+  .first-visit-banner {
+    max-width: 860px; margin: 16px auto 0;
+    background: linear-gradient(135deg, var(--accent) 0%, #4262FF 100%);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    display: flex; align-items: center; gap: 20px;
+    box-shadow: 0 4px 24px rgba(1,20,167,0.30);
+    transition: opacity 0.3s, transform 0.3s;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  .fvb-icon { font-size: 36px; flex-shrink: 0; }
+  .fvb-body { flex: 1; }
+  .fvb-body strong { font-size: 16px; font-weight: 800; color: #fff; display: block; margin-bottom: 4px; }
+  .fvb-body span { font-size: 13px; color: rgba(255,255,255,0.8); }
+  .fvb-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+  .fvb-btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #fff; color: var(--accent); border: none;
+    border-radius: 8px; padding: 10px 20px;
+    font-family: 'Pretendard', sans-serif; font-size: 13px; font-weight: 800;
+    cursor: pointer; white-space: nowrap;
+    transition: opacity 0.15s; text-decoration: none;
+  }
+  .fvb-btn-primary:hover { opacity: 0.88; }
+  .fvb-btn-skip {
+    background: transparent; border: none; color: rgba(255,255,255,0.65);
+    font-family: 'Pretendard', sans-serif; font-size: 12px; font-weight: 500;
+    cursor: pointer; text-align: center; padding: 4px;
+    transition: color 0.15s;
+  }
+  .fvb-btn-skip:hover { color: #fff; }
+  @media (max-width: 600px) { .first-visit-banner { flex-direction: column; align-items: flex-start; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">K</div>
+  <h1>
+    테스트 결과서 생성기
+    <span>Kbank QA · Test Case를 입력하고 Excel 파일로 내보내세요</span>
+  </h1>
+  <a class="btn-guide" href="https://k-test-result-generator-guide.netlify.app" target="_blank" rel="noopener" title="사용 가이드">📖 사용 가이드</a>
+  <button class="btn-json-save" id="jsonSaveBtn" onclick="saveToJSON()">
+    <span class="dirty-dot"></span>💾 임시저장
+  </button>
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="라이트/다크 모드 전환">🌙</button>
+</header>
+
+<input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="onJsonFileSelect(event)">
+
+<div id="clipboardFloat">
+  <button class="cf-close" onclick="hideClipboardFloat()" title="닫기">✕</button>
+  <div class="cf-label">📋 클립보드 이미지</div>
+  <div class="cf-img-wrap" id="cfImgWrap" draggable="true">
+    <img id="cfImg" src="" alt="clipboard image">
+  </div>
+  <div class="cf-hint">TC 사진 영역에<br>드래그하세요</div>
+</div>
+
+<div id="firstVisitBanner" class="first-visit-banner" style="display:none;">
+  <div class="fvb-icon">👋</div>
+  <div class="fvb-body">
+    <strong>이 프로그램이 처음이신가요?</strong>
+    <span>주요 기능과 사용법을 사용 가이드에서 미리 확인해보세요.<br>TC 작성·이미지 첨부·어노테이션·엑셀 추출까지 한눈에 볼 수 있어요.</span>
+  </div>
+  <div class="fvb-actions">
+    <a class="fvb-btn-primary" href="https://k-test-result-generator-guide.netlify.app" target="_blank" rel="noopener" onclick="dismissFirstVisit()">📖 사용 가이드 보기</a>
+    <button class="fvb-btn-skip" onclick="dismissFirstVisit()">이미 알고 있어요</button>
+  </div>
+</div>
+
+<div id="welcomeBanner" class="welcome-banner">
+  <div class="wb-icon">📂</div>
+  <div class="wb-body">
+    <strong>이전에 저장한 작업이 있으신가요?</strong>
+    <span>JSON 파일을 불러오면 이미지·어노테이션 포함 완전 복구됩니다.</span>
+  </div>
+  <div class="wb-actions">
+    <button class="btn btn-ghost" onclick="openJSON()">📂 JSON 불러오기</button>
+    <button class="btn btn-ghost" onclick="dismissWelcome()">새로 시작</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="card">
+    <div class="card-title">기본 정보</div>
+    <div class="meta-grid">
+      <div class="field">
+        <label>CHA명 <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="chaName" placeholder="예) CHA2601-1234">
+      </div>
+      <div class="field">
+        <label>테스터 이름 <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="testerName" placeholder="예) 김케이">
+      </div>
+      <div class="field">
+        <label>테스트 날짜 <span style="color:var(--danger)">*</span></label>
+        <input type="date" id="testDate">
+        <label class="tc-date-toggle-wrap" title="테스트 케이스별 날짜 개별 설정">
+          <input type="checkbox" id="perTcDateToggle" onchange="togglePerTcDate(this.checked)">
+          <span class="tc-date-toggle-label">테스트 케이스별로 날짜를 지정하고 싶어요</span>
+        </label>
+      </div>
+    </div>
+    <p class="filename-hint">저장될 파일명: <code id="filenamePreview">기본 정보를 모두 입력하면 표시됩니다</code></p>
+
+    <div class="quality-setting">
+      <div class="quality-label">이미지 품질 설정</div>
+      <div class="quality-options">
+        <label class="quality-opt">
+          <input type="radio" name="imgQuality" value="600">
+          <div class="quality-card">
+            <span class="quality-name">빠름</span>
+            <span class="quality-px">최대 600px</span>
+            <span class="quality-desc">용량 작음 · 내보내기 빠름 · 느린 PC 권장</span>
+          </div>
+        </label>
+        <label class="quality-opt">
+          <input type="radio" name="imgQuality" value="800" checked>
+          <div class="quality-card">
+            <span class="quality-name">기본 <span style="font-size:10px;font-weight:700;background:var(--accent);color:#fff;border-radius:4px;padding:1px 6px;vertical-align:middle;">추천</span></span>
+            <span class="quality-px">최대 800px</span>
+            <span class="quality-desc">화질과 속도의 균형 · 대부분 상황에 적합</span>
+          </div>
+        </label>
+        <label class="quality-opt">
+          <input type="radio" name="imgQuality" value="0">
+          <div class="quality-card">
+            <span class="quality-name">고화질</span>
+            <span class="quality-px">원본 유지</span>
+            <span class="quality-desc">선명도 최대 · 파일 크기 증가 · 내보내기 느림</span>
+          </div>
+        </label>
+      </div>
+      <p class="quality-note">⚡ 새로 추가하는 이미지부터 적용됩니다. 화질이 높을수록 JSON·엑셀 파일 크기가 커지고 내보내기 시간이 길어져요.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">테스트 정보</div>
+    <div class="field" style="margin-bottom: 14px;">
+      <label>테스트 제목 <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="testTitle" placeholder="예) 마이키즈 서비스 통합테스트">
+    </div>
+    <div class="field">
+      <label>테스트 설명 <span style="color:var(--danger)">*</span></label>
+      <textarea id="testDesc" rows="3" placeholder="예) 마이키즈 서비스 신규 배포를 위한 사전 마이키즈 서비스 통합테스트입니다."></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">테스트 케이스</div>
+    <div class="cf-manager" id="cfManager">
+      <div class="cf-chips" id="cfChips"><span class="cf-empty-hint">커스텀 필드 없음 — 아래에서 추가하세요</span></div>
+      <div class="cf-add-row">
+        <input type="text" id="cfNameInput" placeholder="필드명 입력 (예: 테스트 환경, 통과 여부)" maxlength="20"
+               onkeydown="if(event.key==='Enter') addCustomField()">
+        <button class="btn btn-ghost" onclick="addCustomField()">+ 필드 추가</button>
+      </div>
+    </div>
+    <div class="tc-list" id="tcList">
+      <div class="empty-tc" id="emptyMsg">
+        <div class="big">📋</div>
+        아직 테스트 케이스가 없어요.<br>아래 버튼으로 추가해보세요.
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <button class="btn btn-ghost" onclick="addTC()">＋ 테스트 케이스 추가</button>
+    </div>
+  </div>
+
+  <div class="save-section">
+    <div>
+      <button class="btn btn-primary btn-lg" id="saveBtn" onclick="exportExcel()">
+        📊 엑셀로 내보내기
+      </button>
+      <p class="save-hint">작업 파일 보관은 상단 💾 임시저장을 이용하세요</p>
+    </div>
+  </div>
+</div>
+
+<button class="fab-save" id="fabSave" onclick="saveToJSON()">💾 임시저장</button>
+
+<div class="toast" id="toast"></div>
+
+<div class="annot-overlay" id="annotOverlay">
+  <div class="annot-modal">
+    <div class="annot-toolbar">
+      <span class="annot-toolbar-title">✏️ 이미지 강조 표시</span>
+      <div class="annot-mode">
+        <button class="annot-mode-btn active" id="modeBtnBox" onclick="setAnnotMode('box',this)">□ 박스</button>
+        <button class="annot-mode-btn" id="modeBtnMosaic" onclick="setAnnotMode('mosaic',this)">▦ 모자이크</button>
+      </div>
+      <div class="annot-colors" id="annotColors">
+        <button class="color-swatch active" style="background:#E53A3A" onclick="setAnnotColor('#E53A3A',this)" title="빨간색"></button>
+        <button class="color-swatch" style="background:#FFD600" onclick="setAnnotColor('#FFD600',this)" title="노란색"></button>
+        <button class="color-swatch" style="background:#4262FF" onclick="setAnnotColor('#4262FF',this)" title="파란색"></button>
+        <button class="color-swatch" style="background:#00A86B" onclick="setAnnotColor('#00A86B',this)" title="초록색"></button>
+        <button class="color-swatch" style="background:#FF8C00" onclick="setAnnotColor('#FF8C00',this)" title="주황색"></button>
+        <input type="color" class="color-custom" id="annotColorPicker" value="#E53A3A"
+               oninput="setAnnotColor(this.value,null)" title="직접 선택">
+      </div>
+      <div class="annot-thickness" id="annotThickness">
+        <div class="thickness-preview"><span id="thicknessPreview" style="height:3px"></span></div>
+        <input type="range" id="annotThickness" min="1" max="12" value="3"
+               oninput="setAnnotThickness(this.value)">
+      </div>
+      <button class="annot-btn" onclick="annotUndo()">↩ 되돌리기</button>
+      <button class="annot-btn danger" onclick="annotClear()">🗑 전체 지우기</button>
+      <button class="annot-btn primary" onclick="annotSave()">✓ 저장</button>
+      <button class="annot-btn" onclick="annotClose()">✕ 닫기</button>
+    </div>
+    <div class="annot-canvas-wrap">
+      <canvas id="annotCanvas"></canvas>
+    </div>
+    <p class="annot-hint" id="annotHint">드래그하여 강조할 부분에 빨간 박스를 그리세요 · 여러 개 추가 가능</p>
+  </div>
+</div>
+
+<script>
+
+  document.getElementById('testDate').value = document.getElementById('testDate').value || new Date().toISOString().split('T')[0];
+  document.querySelector('.main').classList.add('dimmed');
+
+  // ── 다크 모드 ──────────────────────────────────────────────
+  (function initTheme() {
+
+    // 첫 방문 배너 — 최초 2회 진입 시 표시
+    (function() {
+      const KEY = 'k-test-guide-visits';
+      const visits = parseInt(localStorage.getItem(KEY) || '0');
+      if (visits < 2) {
+        const fvb = document.getElementById('firstVisitBanner');
+        const wb  = document.getElementById('welcomeBanner');
+        if (fvb && wb) { fvb.style.display = 'flex'; wb.style.display = 'none'; }
+        localStorage.setItem(KEY, String(visits + 1));
+      }
+    })();
+
+    const saved = localStorage.getItem('k-test-result-generator-theme') || 'light';
+    applyTheme(saved);
+  })();
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    localStorage.setItem('k-test-result-generator-theme', theme);
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  }
+
+  function updateFilenameHint() {
+    const cha    = document.getElementById('chaName').value.trim();
+    const tester = document.getElementById('testerName').value.trim();
+    const date   = document.getElementById('testDate').value.replace(/-/g, '');
+    const el     = document.getElementById('filenamePreview');
+    el.textContent = (cha && tester && date)
+      ? `${cha}_테스트결과서_${tester}_${date}.xlsx`
+      : '기본 정보를 모두 입력하면 표시됩니다';
+  }
+  document.getElementById('chaName').addEventListener('input', () => { updateFilenameHint(); markDirty(); });
+  document.getElementById('testerName').addEventListener('input', () => { updateFilenameHint(); markDirty(); });
+  document.getElementById('testDate').addEventListener('change', () => { updateFilenameHint(); markDirty(); });
+  document.getElementById('testTitle').addEventListener('input', () => markDirty());
+  document.getElementById('testDesc').addEventListener('input', () => markDirty());
+  updateFilenameHint();
+
+  let tcCounter = 0;
+  const testCases = [];
+  let perTcDate = false;
+  let customFields = []; // 전체 TC에 공통 적용되는 커스텀 필드명 목록
+
+  function renderCustomFieldsMgr() {
+    const chips = document.getElementById('cfChips');
+    if (!chips) return;
+    if (customFields.length === 0) {
+      chips.innerHTML = '<span class="cf-empty-hint">커스텀 필드 없음 — 아래에서 추가하세요</span>';
+      return;
+    }
+    chips.innerHTML = customFields.map((name, i) =>
+      `<div class="cf-chip"><span>${escHtml(name)}</span><button onclick="removeCustomField(${i})" title="삭제">×</button></div>`
+    ).join('');
+  }
+
+  function addCustomField() {
+    const input = document.getElementById('cfNameInput');
+    const name = input.value.trim();
+    if (!name) return;
+    if (customFields.includes(name)) { showToast('이미 존재하는 필드명입니다.', true); return; }
+    customFields.push(name);
+    testCases.forEach(tc => { if (!tc.customValues) tc.customValues = {}; tc.customValues[name] = ''; });
+    input.value = '';
+    renderCustomFieldsMgr();
+    renderList();
+    markDirty();
+  }
+
+  function removeCustomField(idx) {
+    const name = customFields[idx];
+    if (!name) return;
+    const hasValue = testCases.some(tc => tc.customValues && tc.customValues[name]);
+    if (hasValue && !confirm(`'${name}' 필드를 삭제하면 모든 케이스의 입력값도 사라집니다. 계속할까요?`)) return;
+    customFields.splice(idx, 1);
+    testCases.forEach(tc => { if (tc.customValues) delete tc.customValues[name]; });
+    renderCustomFieldsMgr();
+    renderList();
+    markDirty();
+  }
+
+  function updateCustomValue(id, cfIdx, val) {
+    const tc = testCases.find(t => t.id === id);
+    if (!tc) return;
+    if (!tc.customValues) tc.customValues = {};
+    tc.customValues[customFields[cfIdx]] = val;
+    markDirty();
+  }
+
+  function togglePerTcDate(checked) {
+    perTcDate = checked;
+    if (perTcDate) {
+      const globalDate = document.getElementById('testDate').value || '';
+      testCases.forEach(tc => { if (!tc.testDate) tc.testDate = globalDate; });
+    }
+    renderList();
+    markDirty();
+  }
+
+  function addTC() {
+    tcCounter++;
+    const id = tcCounter;
+    const initCv = {};
+    customFields.forEach(f => { initCv[f] = ''; });
+    testCases.push({ id, title: '', desc: '', testDate: document.getElementById('testDate').value || '', customValues: initCv, images: [] });
+    markDirty();
+    renderList();
+    setTimeout(() => {
+      const el = document.getElementById('tc-' + id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+
+  function removeTC(id) {
+    const idx = testCases.findIndex(t => t.id === id);
+    if (idx !== -1) testCases.splice(idx, 1);
+    markDirty();
+    renderList();
+  }
+
+  function escHtml(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderList() {
+    const list = document.getElementById('tcList');
+    const emptyMsg = document.getElementById('emptyMsg');
+    Array.from(list.children).forEach(c => { if (c.id !== 'emptyMsg') c.remove(); });
+
+    if (testCases.length === 0) { emptyMsg.style.display = ''; return; }
+    emptyMsg.style.display = 'none';
+
+    testCases.forEach((tc, idx) => {
+      const div = document.createElement('div');
+      div.className = 'tc-item'; div.id = 'tc-' + tc.id;
+      const imgCount = tc.images.length;
+      div.innerHTML = `
+        <div class="tc-header" onclick="toggleTC(${tc.id})">
+          <div class="tc-num">${idx + 1}</div>
+          <div class="tc-title-preview ${tc.title ? '' : 'empty'}" id="preview-${tc.id}">${tc.title || '제목 없음'}</div>
+          ${perTcDate ? `<div class="tc-date-badge" id="date-badge-${tc.id}">${tc.testDate || '날짜 미설정'}</div>` : ''}
+          ${imgCount > 0 ? `<div class="tc-badge">🖼 ${imgCount}장</div>` : ''}
+          <button class="tc-delete" onclick="event.stopPropagation(); removeTC(${tc.id})">✕</button>
+          <span class="chevron open" id="chev-${tc.id}">▾</span>
+        </div>
+        <div class="tc-body" id="body-${tc.id}">
+          ${perTcDate ? `
+          <div class="field">
+            <label>테스트 날짜</label>
+            <input type="date" value="${tc.testDate || ''}" oninput="updateField(${tc.id}, 'testDate', this.value)">
+          </div>` : ''}
+          <div class="field">
+            <label>테스트 케이스 제목 <span style="color:var(--danger)">*</span></label>
+            <input type="text" placeholder="제목을 입력하세요" value="${escHtml(tc.title)}"
+              oninput="updateField(${tc.id}, 'title', this.value)">
+          </div>
+          <div class="field">
+            <label>테스트 케이스 설명</label>
+            <textarea rows="3" placeholder="설명을 입력하세요"
+              oninput="updateField(${tc.id}, 'desc', this.value)">${escHtml(tc.desc)}</textarea>
+          </div>
+          ${customFields.map((name, cfIdx) => `
+          <div class="field">
+            <label>${escHtml(name)}</label>
+            <input type="text" placeholder="${escHtml(name)}을(를) 입력하세요"
+              value="${escHtml((tc.customValues || {})[name] || '')}"
+              oninput="updateCustomValue(${tc.id}, ${cfIdx}, this.value)">
+          </div>`).join('')}
+          <div class="field">
+            <label>첨부 사진</label>
+            <div class="dropzone" id="drop-${tc.id}"
+              ondragover="onDragOver(event,${tc.id})"
+              ondragleave="onDragLeave(${tc.id})"
+              ondrop="onDrop(event,${tc.id})">
+              <input type="file" accept="image/*" multiple onchange="onFileChange(event,${tc.id})">
+              <div class="dropzone-icon">🖼️</div>
+              <div class="dropzone-text"><span>클릭하거나 이미지를 드래그</span>하세요</div>
+              <div class="dropzone-text" style="margin-top:4px;font-size:11px">📋 이미지 복사 후 <kbd style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg)">Ctrl+V</kbd> 로 붙여넣기도 가능해요</div>
+            </div>
+            <div class="img-previews" id="imgs-${tc.id}"></div>
+            <div class="img-drag-hint" id="drag-hint-${tc.id}" style="display:none">
+              <span id="drag-hint-order-${tc.id}">↔ 사진을 드래그하면 순서를 바꿀 수 있어요</span>
+              <span>✏️ 사진에 마우스를 올리면 편집 버튼이 나타나요. 클릭하면 원하는 부분을 강조할 수 있어요</span>
+            </div>
+          </div>
+        </div>`;
+      list.appendChild(div);
+      renderImgs(tc.id);
+    });
+  }
+
+  function toggleTC(id) {
+    document.getElementById('body-' + id).classList.toggle('collapsed');
+    document.getElementById('chev-' + id).classList.toggle('open');
+  }
+
+  function updateField(id, field, val) {
+    const tc = testCases.find(t => t.id === id);
+    if (!tc) return;
+    tc[field] = val;
+    markDirty();
+    if (field === 'title') {
+      const p = document.getElementById('preview-' + id);
+      if (p) { p.textContent = val || '제목 없음'; p.className = 'tc-title-preview' + (val ? '' : ' empty'); }
+    }
+    if (field === 'testDate') {
+      const badge = document.getElementById('date-badge-' + id);
+      if (badge) badge.textContent = val || '날짜 미설정';
+    }
+  }
+
+  function onDragOver(e, id) { e.preventDefault(); document.getElementById('drop-' + id).classList.add('dragover'); }
+  function onDragLeave(id) { document.getElementById('drop-' + id).classList.remove('dragover'); }
+  function onDrop(e, id) {
+    e.preventDefault();
+    document.getElementById('drop-' + id).classList.remove('dragover');
+    if (e.dataTransfer.getData('cf-source') === '1') {
+      if (clipboardFloatFile) { clipboardDropSucceeded = true; handleFiles([clipboardFloatFile], id); }
+      return;
+    }
+    handleFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')), id);
+  }
+  function onFileChange(e, id) { handleFiles(Array.from(e.target.files), id); e.target.value = ''; }
+
+  function getMaxImgPx() {
+    const el = document.querySelector('input[name="imgQuality"]:checked');
+    const val = el ? parseInt(el.value) : 800;
+    return val === 0 ? Infinity : val;
+  }
+
+  function resizeDataUrl(dataUrl, type, callback) {
+    const MAX_IMG_PX = getMaxImgPx();
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (w <= MAX_IMG_PX && h <= MAX_IMG_PX) { callback(dataUrl, w, h); return; }
+      const scale = MAX_IMG_PX / Math.max(w, h);
+      const nw = Math.round(w * scale), nh = Math.round(h * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = nw; canvas.height = nh;
+      canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
+      callback(canvas.toDataURL(type === 'image/png' ? 'image/png' : 'image/jpeg', 0.88), nw, nh);
+    };
+    img.src = dataUrl;
+  }
+
+  let clipboardFloatFile = null;
+  let clipboardDropSucceeded = false;
+
+  document.addEventListener('paste', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (document.getElementById('annotOverlay').classList.contains('open')) return;
+    if (!e.clipboardData) return;
+    const items = [...e.clipboardData.items].filter(i => i.kind === 'file' && i.type.startsWith('image/'));
+    if (!items.length) return;
+    const file = items[0].getAsFile();
+    if (!file) return;
+    e.preventDefault();
+    clipboardFloatFile = file;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      document.getElementById('cfImg').src = ev.target.result;
+      document.getElementById('clipboardFloat').classList.add('visible');
+    };
+    reader.readAsDataURL(clipboardFloatFile);
+  });
+
+  function hideClipboardFloat() {
+    document.getElementById('clipboardFloat').classList.remove('visible');
+    clipboardFloatFile = null;
+  }
+
+  document.getElementById('cfImgWrap').addEventListener('dragstart', e => {
+    if (!clipboardFloatFile) { e.preventDefault(); return; }
+    clipboardDropSucceeded = false;
+    e.dataTransfer.setData('cf-source', '1');
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  document.getElementById('cfImgWrap').addEventListener('dragend', () => {
+    if (clipboardDropSucceeded) hideClipboardFloat();
+    clipboardDropSucceeded = false;
+  });
+
+  function handleFiles(files, id) {
+    const tc = testCases.find(t => t.id === id);
+    if (!tc) return;
+    let loaded = 0;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        resizeDataUrl(e.target.result, file.type, (dataUrl, nw, nh) => {
+          tc.images.push({ name: file.name, dataUrl, type: file.type, nw, nh });
+          loaded++;
+          markDirty();
+          if (loaded === files.length) renderList();
+          else renderImgs(id);
+          if (nw > nh) {
+            showToast(`⚠️ "${file.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000);
+          }
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const dragState = { tcId: null, fromIdx: null };
+
+  function renderImgs(id) {
+    const tc = testCases.find(t => t.id === id);
+    const container = document.getElementById('imgs-' + id);
+    if (!container || !tc) return;
+    container.innerHTML = '';
+    tc.images.forEach((img, i) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'img-thumb' + (img.annotated ? ' annotated' : '');
+      thumb.draggable = true;
+      thumb.innerHTML = `<img src="${img.dataUrl}" alt="${escHtml(img.name)}">
+        <button class="img-thumb-del" onclick="removeImg(${id},${i})">✕</button>
+        <button class="img-thumb-edit" onclick="openAnnotEditor(${id},${i})" title="강조 표시">✏️</button>`;
+
+      thumb.addEventListener('dragstart', e => {
+        dragState.tcId    = id;
+        dragState.fromIdx = i;
+        thumb.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      thumb.addEventListener('dragend', () => {
+        thumb.classList.remove('dragging');
+        container.querySelectorAll('.img-thumb').forEach(el => el.classList.remove('drag-over'));
+      });
+      thumb.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        container.querySelectorAll('.img-thumb').forEach(el => el.classList.remove('drag-over'));
+        thumb.classList.add('drag-over');
+      });
+      thumb.addEventListener('drop', e => {
+        e.preventDefault();
+        thumb.classList.remove('drag-over');
+        if (dragState.tcId !== id || dragState.fromIdx === i) return;
+        const tc2 = testCases.find(t => t.id === id);
+        if (!tc2) return;
+        const [moved] = tc2.images.splice(dragState.fromIdx, 1);
+        tc2.images.splice(i, 0, moved);
+        markDirty();
+        renderImgs(id);
+      });
+
+      container.appendChild(thumb);
+    });
+
+    const hint = document.getElementById('drag-hint-' + id);
+    if (hint) hint.style.display = tc.images.length > 0 ? '' : 'none';
+    const orderHint = document.getElementById('drag-hint-order-' + id);
+    if (orderHint) orderHint.style.display = tc.images.length > 1 ? '' : 'none';
+  }
+
+  function removeImg(tcId, imgIdx) {
+    const tc = testCases.find(t => t.id === tcId);
+    if (!tc) return;
+    tc.images.splice(imgIdx, 1);
+    markDirty();
+    renderList();
+  }
+
+  // ── 이미지 어노테이션 ────────────────────────────────────────
+  const annot = {
+    tcId: null, imgIdx: null,
+    img: null,
+    origDataUrl: null,
+    rects: [],          // [{x,y,w,h,color}] — display 좌표
+    drawing: false,
+    startX: 0, startY: 0,
+    scale: 1,
+    dpr: 1,
+    color: '#E53A3A',   // 현재 선택 색상
+    lineWidth: 3,       // 현재 선 굵기
+    mode: 'box',        // 'box' | 'mosaic'
+  };
+
+  function setAnnotThickness(val) {
+    annot.lineWidth = Number(val);
+    const preview = document.getElementById('thicknessPreview');
+    if (preview) preview.style.height = val + 'px';
+  }
+
+  function setAnnotColor(color, btn) {
+    annot.color = color;
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const picker = document.getElementById('annotColorPicker');
+    if (picker) picker.value = color;
+  }
+
+  function setAnnotMode(mode, btn) {
+    annot.mode = mode;
+    document.querySelectorAll('.annot-mode-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    const isMosaic = mode === 'mosaic';
+    document.getElementById('annotColors').style.display   = isMosaic ? 'none' : '';
+    document.getElementById('annotThickness').style.display = isMosaic ? 'none' : '';
+    document.getElementById('annotHint').textContent = isMosaic
+      ? '드래그하여 모자이크 처리할 부분을 선택하세요 · 여러 개 추가 가능'
+      : '드래그하여 강조할 부분에 빨간 박스를 그리세요 · 여러 개 추가 가능';
+  }
+
+  function openAnnotEditor(tcId, imgIdx) {
+    const tc = testCases.find(t => t.id === tcId);
+    if (!tc) return;
+    const imgData = tc.images[imgIdx];
+    if (!imgData) return;
+
+    annot.tcId        = tcId;
+    annot.imgIdx      = imgIdx;
+    annot.rects       = (imgData.rects || []);  // 자연 좌표로 저장됨 — scale 적용은 openAnnotEditor 내 image.onload에서
+    annot.origDataUrl = imgData.origDataUrl || imgData.dataUrl;
+
+    const image = new Image();
+    image.onload = () => {
+      annot.img = image;
+      annot.dpr = window.devicePixelRatio || 1;
+
+      const maxW = Math.min(window.innerWidth  * 0.86, 1100);
+      const maxH = Math.min(window.innerHeight * 0.70, 750);
+      annot.scale = Math.min(maxW / image.naturalWidth, maxH / image.naturalHeight, 1);
+
+      // 자연 좌표 → 현재 display 좌표로 변환 (scale 확정 후)
+      annot.rects = annot.rects.map(r => ({
+        x: r.x * annot.scale, y: r.y * annot.scale,
+        w: r.w * annot.scale, h: r.h * annot.scale,
+        color: r.color, lineWidth: r.lineWidth * annot.scale,
+        type: r.type || 'box',
+      }));
+
+      const displayW = Math.round(image.naturalWidth  * annot.scale);
+      const displayH = Math.round(image.naturalHeight * annot.scale);
+
+      const canvas = document.getElementById('annotCanvas');
+      // DPR 적용 — 내부 해상도를 디스플레이 해상도에 맞춤 (레티나 선명도)
+      canvas.width        = displayW * annot.dpr;
+      canvas.height       = displayH * annot.dpr;
+      canvas.style.width  = displayW + 'px';
+      canvas.style.height = displayH + 'px';
+
+      // 이미지 평균 밝기 샘플링 → 배경색 자동 결정
+      (function setCanvasBg() {
+        const s = 60;
+        const tmp = document.createElement('canvas');
+        tmp.width = s; tmp.height = s;
+        tmp.getContext('2d').drawImage(image, 0, 0, s, s);
+        const d = tmp.getContext('2d').getImageData(0, 0, s, s).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4)
+          sum += 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        const bright = sum / (s * s);
+        document.querySelector('.annot-canvas-wrap').style.background =
+          bright > 128 ? '#1C1C2E' : '#E8E8EE';
+      })();
+
+      annotRedraw();
+      document.getElementById('annotOverlay').classList.add('open');
+    };
+    image.src = annot.origDataUrl;
+  }
+
+  function annotRedraw() {
+    const canvas = document.getElementById('annotCanvas');
+    const ctx    = canvas.getContext('2d');
+    const dpr    = annot.dpr || 1;
+    const dW     = canvas.width  / dpr;
+    const dH     = canvas.height / dpr;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, dW, dH);
+    ctx.drawImage(annot.img, 0, 0, dW, dH);
+    annot.rects.forEach(r => drawAnnotShape(ctx, r));
+    ctx.restore();
+  }
+
+  function drawAnnotRect(ctx, r) {
+    const color = r.color || annot.color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = r.lineWidth || annot.lineWidth;
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.globalAlpha = 0.10;
+    ctx.fillStyle   = color;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawAnnotShape(ctx, r) {
+    if (r.type === 'mosaic') {
+      const rx = Math.min(r.x, r.x + r.w);
+      const ry = Math.min(r.y, r.y + r.h);
+      const rw = Math.abs(r.w);
+      const rh = Math.abs(r.h);
+      if (rw < 2 || rh < 2) return;
+      const inv = 1 / annot.scale;
+      const pixelSize = Math.max(4, Math.round(Math.min(rw, rh) / 10));
+      const blockW = Math.max(1, Math.round(rw / pixelSize));
+      const blockH = Math.max(1, Math.round(rh / pixelSize));
+      const tmp = document.createElement('canvas');
+      tmp.width = blockW; tmp.height = blockH;
+      const tmpCtx = tmp.getContext('2d');
+      tmpCtx.imageSmoothingEnabled = true;
+      tmpCtx.drawImage(annot.img, rx * inv, ry * inv, rw * inv, rh * inv, 0, 0, blockW, blockH);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmp, 0, 0, blockW, blockH, rx, ry, rw, rh);
+      ctx.restore();
+    } else {
+      drawAnnotRect(ctx, r);
+    }
+  }
+
+  // 캔버스 이벤트
+  (function bindAnnotCanvas() {
+    // display 좌표 반환 (canvas.style.width 기준)
+    const getPos = (e, canvas) => {
+      const rect   = canvas.getBoundingClientRect();
+      const src    = e.touches ? e.touches[0] : e;
+      const scaleX = parseFloat(canvas.style.width)  / rect.width;
+      const scaleY = parseFloat(canvas.style.height) / rect.height;
+      return {
+        x: (src.clientX - rect.left) * scaleX,
+        y: (src.clientY - rect.top)  * scaleY,
+      };
+    };
+
+    function onStart(e) {
+      if (!document.getElementById('annotOverlay').classList.contains('open')) return;
+      e.preventDefault();
+      const pos    = getPos(e, document.getElementById('annotCanvas'));
+      annot.drawing = true;
+      annot.startX  = pos.x;
+      annot.startY  = pos.y;
+    }
+    function onMove(e) {
+      if (!annot.drawing) return;
+      e.preventDefault();
+      const pos    = getPos(e, document.getElementById('annotCanvas'));
+      annotRedraw();
+      // 현재 드래그 중인 미확정 박스 미리보기
+      const ctx = document.getElementById('annotCanvas').getContext('2d');
+      ctx.save();
+      ctx.scale(annot.dpr, annot.dpr);
+      drawAnnotShape(ctx, { x: annot.startX, y: annot.startY, w: pos.x - annot.startX, h: pos.y - annot.startY, color: annot.color, type: annot.mode });
+      ctx.restore();
+    }
+    function onEnd(e) {
+      if (!annot.drawing) return;
+      e.preventDefault();
+      annot.drawing = false;
+      const pos = getPos(e, document.getElementById('annotCanvas'));
+      const w   = pos.x - annot.startX;
+      const h   = pos.y - annot.startY;
+      if (Math.abs(w) > 4 && Math.abs(h) > 4) {
+        annot.rects.push({ x: annot.startX, y: annot.startY, w, h, color: annot.color, lineWidth: annot.lineWidth, type: annot.mode });
+        annotRedraw();
+      }
+    }
+
+    const c = document.getElementById('annotCanvas');
+    c.addEventListener('mousedown',  onStart);
+    c.addEventListener('mousemove',  onMove);
+    c.addEventListener('mouseup',    onEnd);
+    c.addEventListener('touchstart', onStart, { passive: false });
+    c.addEventListener('touchmove',  onMove,  { passive: false });
+    c.addEventListener('touchend',   onEnd,   { passive: false });
+  })();
+
+  function annotUndo()  { annot.rects.pop(); annotRedraw(); }
+  function annotClear() { annot.rects = []; annotRedraw(); }
+  function annotClose() { document.getElementById('annotOverlay').classList.remove('open'); }
+
+  function annotSave() {
+    // 원본 해상도 오프스크린 캔버스에 주석 합성
+    const off = document.createElement('canvas');
+    off.width  = annot.img.naturalWidth;
+    off.height = annot.img.naturalHeight;
+    const ctx  = off.getContext('2d');
+    ctx.drawImage(annot.img, 0, 0);
+
+    const inv = 1 / annot.scale;   // display → natural 변환 비율
+    annot.rects.forEach(r => {
+      const sr = { x: r.x * inv, y: r.y * inv, w: r.w * inv, h: r.h * inv };
+      if (r.type === 'mosaic') {
+        const rx = Math.min(sr.x, sr.x + sr.w);
+        const ry = Math.min(sr.y, sr.y + sr.h);
+        const rw = Math.abs(sr.w);
+        const rh = Math.abs(sr.h);
+        if (rw < 2 || rh < 2) return;
+        const pixelSize = Math.max(4, Math.round(Math.min(rw, rh) / 10));
+        const blockW = Math.max(1, Math.round(rw / pixelSize));
+        const blockH = Math.max(1, Math.round(rh / pixelSize));
+        const tmp = document.createElement('canvas');
+        tmp.width = blockW; tmp.height = blockH;
+        const tmpCtx = tmp.getContext('2d');
+        tmpCtx.imageSmoothingEnabled = true;
+        tmpCtx.drawImage(annot.img, rx, ry, rw, rh, 0, 0, blockW, blockH);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmp, 0, 0, blockW, blockH, rx, ry, rw, rh);
+        ctx.restore();
+      } else {
+        const color = r.color || '#E53A3A';
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = (r.lineWidth || 3) * inv;
+        ctx.strokeRect(sr.x, sr.y, sr.w, sr.h);
+        ctx.globalAlpha = 0.10;
+        ctx.fillStyle   = color;
+        ctx.fillRect(sr.x, sr.y, sr.w, sr.h);
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    const tc = testCases.find(t => t.id === annot.tcId);
+    if (tc && tc.images[annot.imgIdx]) {
+      if (!tc.images[annot.imgIdx].origDataUrl) {
+        tc.images[annot.imgIdx].origDataUrl = annot.origDataUrl;
+      }
+      tc.images[annot.imgIdx].dataUrl   = off.toDataURL('image/png');
+      tc.images[annot.imgIdx].type      = 'image/png';
+      tc.images[annot.imgIdx].annotated = annot.rects.length > 0;
+      // display 좌표 → 자연 이미지 좌표로 변환 저장 (scale 독립적)
+      tc.images[annot.imgIdx].rects = annot.rects.map(r => ({
+        x: r.x * inv, y: r.y * inv, w: r.w * inv, h: r.h * inv,
+        color: r.color, lineWidth: r.lineWidth * inv,
+        type: r.type || 'box',
+      }));
+      markDirty();
+    }
+    annotClose();
+    renderList();
+  }
+
+  // ── ExcelJS Export ─────────────────────────────────────────
+  async function exportExcel() {
+    const chaName   = document.getElementById('chaName').value.trim();
+    const tester    = document.getElementById('testerName').value.trim();
+    const dateVal   = document.getElementById('testDate').value;
+    const testTitle = document.getElementById('testTitle').value.trim();
+    const testDesc  = document.getElementById('testDesc').value.trim();
+
+    if (!chaName || !tester || !dateVal) { showToast('기본 정보(CHA명, 테스터 이름, 날짜)를 모두 입력해주세요.', true); return; }
+    if (!testTitle || !testDesc) { showToast('테스트 제목과 설명을 입력해주세요.', true); return; }
+    if (testCases.length === 0) { showToast('테스트 케이스를 추가해주세요.', true); return; }
+    const emptyTC = testCases.find(tc => !tc.title.trim());
+    if (emptyTC) { showToast(`테스트 케이스 ${testCases.indexOf(emptyTC) + 1}번의 제목을 입력해주세요.`, true); return; }
+
+    const overlay = showProgress();
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+
+    try {
+      const dateStr = dateVal.replace(/-/g, '');
+      const filename = `${chaName}_테스트결과서_${tester}_${dateStr}.xlsx`;
+
+      const ExcelJS = window.ExcelJS;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = tester;
+      wb.created = new Date();
+
+      const ACCENT   = '0114A7';   // Kbank Primary
+      const ACCENT_D = '000D7A';   // Kbank Primary Dark
+      const HEADER_BG= 'E0E6F1';   // Kbank Grayscale
+      const WHITE    = 'FFFFFF';
+
+      // 이미지 크기 상수 — 여기서만 바꾸면 컬럼 너비·행 높이 자동 연동
+      const IMG_W_PX  = 200;                    // 이미지 가로 (px)
+      const IMG_H_PX  = 356;                    // 이미지 세로 (px) — 9:16 비율
+      const IMG_COL_W = IMG_W_PX / 7;            // 이미지와 동일 너비 (렌더링 여백으로 테두리 자연 노출)
+      // IMG_ROW_H는 기본 폴백용 — 실제 행 높이는 이미지 원본 비율로 계산
+      const IMG_ROW_H = (IMG_H_PX + 1) * 0.75;
+
+      function applyBorder(cell) {
+        const s = { style: 'thin', color: { argb: 'FFBBBBCC' } };
+        cell.border = { top: s, bottom: s, left: s, right: s };
+      }
+
+      // ══════════════════════════════════════════════════════
+      // Sheet 1: 기본 정보 + TC 목록
+      // ══════════════════════════════════════════════════════
+      const ws1 = wb.addWorksheet('기본 정보', {
+        pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true }
+      });
+      const cfCount = customFields.length;
+      ws1.columns = [
+        { width: 18 },  // A: label / #
+        { width: 28 },  // B: value / 제목
+        { width: 38 },  // C: value / 설명
+        ...customFields.map(() => ({ width: 22 })),
+      ];
+
+      const s1LastCol = String.fromCharCode(67 + cfCount); // C=67, D=68 ...
+
+      function s1SecHdr(text, bgHex) {
+        const r = ws1.addRow([text]);
+        ws1.mergeCells(`A${r.number}:${s1LastCol}${r.number}`);
+        const c = r.getCell(1);
+        c.value = text;
+        c.font = { bold: true, size: 11, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bgHex } };
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(c);
+        r.height = 28;
+      }
+
+      function s1InfoRow(label, value, h) {
+        const r = ws1.addRow([label, value]);
+        ws1.mergeCells(`B${r.number}:${s1LastCol}${r.number}`);
+        const lc = r.getCell(1);
+        lc.font = { bold: true, size: 10, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + ACCENT_D } };
+        lc.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(lc);
+        const vc = r.getCell(2);
+        vc.font = { size: 11, name: '맑은 고딕' };
+        vc.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        applyBorder(vc);
+        r.height = h || 26;
+      }
+
+      // 타이틀
+      const s1TitleRow = ws1.addRow(['테스트 결과서']);
+      ws1.mergeCells(`A${s1TitleRow.number}:${s1LastCol}${s1TitleRow.number}`);
+      const s1TitleCell = s1TitleRow.getCell(1);
+      s1TitleCell.value = '테스트 결과서';
+      s1TitleCell.font = { bold: true, size: 20, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+      s1TitleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + ACCENT } };
+      s1TitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      applyBorder(s1TitleCell);
+      s1TitleRow.height = 52;
+
+      // 기본 정보
+      s1SecHdr('기본 정보', ACCENT_D);
+      s1InfoRow('CHA명', chaName);
+      s1InfoRow('테스터 이름', tester);
+      s1InfoRow('테스트 날짜', dateVal);
+      s1InfoRow('테스트 제목', testTitle || '(미입력)');
+      s1InfoRow('테스트 설명', testDesc || '(미입력)', 52);
+
+      // TC 목록
+      s1SecHdr('테스트 케이스 목록', ACCENT_D);
+
+      const s1NoteRow = ws1.addRow(['※ 케이스별 상세 캡쳐 사진 및 설명은 \'테스트 케이스\' 시트를 참고하세요.']);
+      ws1.mergeCells(`A${s1NoteRow.number}:${s1LastCol}${s1NoteRow.number}`);
+      const s1NoteCell = s1NoteRow.getCell(1);
+      s1NoteCell.value = '※ 케이스별 상세 캡쳐 사진 및 설명은 \'테스트 케이스\' 시트를 참고하세요.';
+      s1NoteCell.font = { italic: true, size: 9, color: { argb: 'FF' + ACCENT_D }, name: '맑은 고딕' };
+      s1NoteCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + HEADER_BG } };
+      s1NoteCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+      applyBorder(s1NoteCell);
+      s1NoteRow.height = 20;
+
+      const s1TCHdr = ws1.addRow(['#', '제목', '설명', ...customFields]);
+      s1TCHdr.eachCell((c) => {
+        c.font = { bold: true, size: 10, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E3248' } };
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(c);
+      });
+      s1TCHdr.height = 22;
+
+      testCases.forEach((tc, idx) => {
+        const cv = tc.customValues || {};
+        const descLines = Math.max(1, Math.ceil((tc.desc || '').length / 32));
+        const r = ws1.addRow([idx + 1, tc.title || '(제목 없음)', tc.desc || '', ...customFields.map(f => cv[f] || '')]);
+        const nc = r.getCell(1);
+        nc.font = { bold: true, size: 11, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        nc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + ACCENT } };
+        nc.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(nc);
+        const tc2 = r.getCell(2);
+        tc2.font = { bold: true, size: 10, name: '맑은 고딕' };
+        tc2.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        applyBorder(tc2);
+        const dc = r.getCell(3);
+        dc.font = { size: 10, name: '맑은 고딕' };
+        dc.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+        applyBorder(dc);
+        for (let ci = 0; ci < cfCount; ci++) {
+          const cfc = r.getCell(4 + ci);
+          cfc.font = { size: 10, name: '맑은 고딕' };
+          cfc.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          applyBorder(cfc);
+        }
+        r.height = Math.max(26, descLines * 15 + 8);
+      });
+
+      // ══════════════════════════════════════════════════════
+      // Sheet 2: 테스트 케이스
+      // ══════════════════════════════════════════════════════
+      const maxImgCount = testCases.reduce((m, tc) => Math.max(m, tc.images.length), 0);
+      const imgColCount = Math.max(maxImgCount, 1);
+
+      const ws2 = wb.addWorksheet('테스트 케이스', {
+        pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true }
+      });
+
+      const dateOffset   = perTcDate ? 1 : 0;
+      const customOffset = cfCount;
+      const cols = [
+        { width: 5  },  // A: #
+        ...(perTcDate ? [{ width: 14 }] : []),        // 테스트 날짜 (옵션)
+        { width: 28 },                                 // 제목
+        { width: 40 },                                 // 설명
+        ...customFields.map(() => ({ width: 22 })),    // 커스텀 필드들
+      ];
+      for (let i = 0; i < imgColCount; i++) cols.push({ width: IMG_COL_W });
+      ws2.columns = cols;
+
+      // TC 섹션 헤더
+      const lastImgColLetter = String.fromCharCode(68 + imgColCount - 1 + dateOffset + customOffset); // D=68 기준
+      const s2SecRow = ws2.addRow(['테스트 케이스 목록']);
+      ws2.mergeCells(`A${s2SecRow.number}:${lastImgColLetter}${s2SecRow.number}`);
+      s2SecRow.getCell(1).value = '테스트 케이스 목록';
+      s2SecRow.getCell(1).font = { bold: true, size: 13, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+      s2SecRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + ACCENT_D } };
+      s2SecRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      s2SecRow.height = 30;
+
+      // 컬럼 헤더
+      const imgHeaders = Array.from({ length: imgColCount }, (_, i) => imgColCount > 1 ? `사진 ${i + 1}` : '첨부 사진');
+      const colHdrRow = ws2.addRow(['#', ...(perTcDate ? ['테스트 날짜'] : []), '제목', '설명', ...customFields, ...imgHeaders]);
+      colHdrRow.eachCell((c) => {
+        c.font = { bold: true, size: 10, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E3248' } };
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(c);
+      });
+      colHdrRow.height = 22;
+
+      // ── TC 행 2패스: 행 먼저 추가 → 이미지 나중에 ─────────
+      // twoCell br 앵커가 다음 행을 참조할 때 ExcelJS가 빈 행을
+      // 자동 생성하는 버그 방지: 모든 행을 먼저 만든 뒤 이미지 삽입
+      const tcMeta = [];
+
+      // Pass 1: 행 추가 + 스타일
+      for (let i = 0; i < testCases.length; i++) {
+        const tc = testCases[i];
+        const hasImages = tc.images.length > 0;
+
+        const cv2 = tc.customValues || {};
+        const rowData = [i + 1, ...(perTcDate ? [tc.testDate || dateVal] : []), tc.title || '(제목 없음)', tc.desc || '', ...customFields.map(f => cv2[f] || '')];
+        for (let c = 0; c < imgColCount; c++) rowData.push('');
+        const row = ws2.addRow(rowData);
+
+        if (hasImages) {
+          // TC 내 이미지 중 가로 200px 기준으로 가장 긴 높이를 행 높이로 설정
+          const maxH = Math.max(...tc.images.map(img =>
+            (img.nw && img.nh) ? Math.round(IMG_W_PX * img.nh / img.nw) : IMG_H_PX
+          ));
+          row.height = (maxH + 1) * 0.75;  // +1px → 하단 테두리 노출
+        } else {
+          const descLines = Math.max(1, Math.ceil((tc.desc || '').length / 38));
+          const titleLines = Math.max(1, Math.ceil((tc.title || '').length / 18));
+          row.height = Math.max(44, Math.max(descLines, titleLines) * 18 + 14);
+        }
+
+        const numCell = row.getCell(1);
+        numCell.font = { bold: true, size: 12, color: { argb: 'FF' + WHITE }, name: '맑은 고딕' };
+        numCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + ACCENT } };
+        numCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        applyBorder(numCell);
+
+        if (perTcDate) {
+          const dateC = row.getCell(2);
+          dateC.font = { size: 10, name: '맑은 고딕' };
+          dateC.alignment = { horizontal: 'center', vertical: 'middle' };
+          applyBorder(dateC);
+        }
+
+        const titleC = row.getCell(2 + dateOffset);
+        titleC.font = { bold: true, size: 11, name: '맑은 고딕' };
+        titleC.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+        applyBorder(titleC);
+
+        const descC = row.getCell(3 + dateOffset);
+        descC.font = { size: 10, name: '맑은 고딕' };
+        descC.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+        applyBorder(descC);
+
+        for (let ci = 0; ci < customOffset; ci++) {
+          const cfc = row.getCell(4 + dateOffset + ci);
+          cfc.font = { size: 10, name: '맑은 고딕' };
+          cfc.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          applyBorder(cfc);
+        }
+
+        for (let imgIdx = 0; imgIdx < imgColCount; imgIdx++) {
+          const imgCell = row.getCell(4 + dateOffset + customOffset + imgIdx);
+          imgCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          applyBorder(imgCell);
+          if (!hasImages && imgIdx === 0) {
+            imgCell.value = '첨부 없음';
+            imgCell.font = { size: 10, color: { argb: 'FF888888' }, name: '맑은 고딕' };
+          }
+        }
+
+        tcMeta.push({ tc, row });
+      }
+
+      // Pass 2: 이미지 삽입 (oneCell — 비율 유지, 셀 경계선 노출)
+      for (const { tc, row } of tcMeta) {
+        for (let imgIdx = 0; imgIdx < imgColCount; imgIdx++) {
+          if (!tc.images[imgIdx]) continue;
+          const imgData = tc.images[imgIdx];
+          const base64  = imgData.dataUrl.split(',')[1];
+          const ext     = imgData.type === 'image/png' ? 'png' : imgData.type === 'image/gif' ? 'gif' : 'jpeg';
+          const imageId = wb.addImage({ base64, extension: ext });
+          ws2.addImage(imageId, {
+            tl: { col: 3 + dateOffset + customOffset + imgIdx, row: row.number - 1 },
+            ext: { width: IMG_W_PX, height: (imgData.nw && imgData.nh) ? Math.round(IMG_W_PX * imgData.nh / imgData.nw) : IMG_H_PX },
+            editAs: 'oneCell',
+          });
+        }
+      }
+
+      // ── 파일 저장 ──────────────────────────────────────────
+      const buffer = await wb.xlsx.writeBuffer();
+      const uint8 = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+      const base64 = btoa(binary);
+      const dataUrl = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + base64;
+      const a = document.createElement('a');
+      a.href = dataUrl; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      showToast('✅ ' + filename + ' 저장 완료!');
+    } catch(err) {
+      console.error(err);
+      showToast('❌ 오류가 발생했습니다: ' + err.message, true);
+    } finally {
+      hideProgress(overlay);
+      saveBtn.disabled = false;
+    }
+  }
+
+  const LOADING_MSGS = [
+    ['📊', '열심히 셀 채우는 중...'],
+    ['☕', '잠깐, 메머드에서 커피 한잔만...'],
+    ['🖼️', '스크린샷 정성껏 배치 중...'],
+    ['📐', '픽셀 단위로 맞추는 중...'],
+    ['📝', '테스트 케이스 하나하나 담는 중...'],
+    ['✨', '거의 다 됐어요, 조금만요...'],
+  ];
+
+  function showProgress() {
+    const div = document.createElement('div');
+    div.className = 'progress-overlay';
+    const [icon, text] = LOADING_MSGS[0];
+    div.innerHTML = `<div class="progress-box">
+      <span class="spin" id="progressIcon">${icon}</span>
+      <p id="progressMsg">${text}</p>
+    </div>`;
+    document.body.appendChild(div);
+
+    let idx = 1;
+    div._interval = setInterval(() => {
+      const [ic, tx] = LOADING_MSGS[idx % LOADING_MSGS.length];
+      const iconEl = document.getElementById('progressIcon');
+      const msgEl  = document.getElementById('progressMsg');
+      if (iconEl) iconEl.textContent = ic;
+      if (msgEl)  msgEl.textContent  = tx;
+      idx++;
+    }, 900);
+
+    return div;
+  }
+  function hideProgress(el) {
+    if (!el) return;
+    clearInterval(el._interval);
+    el.remove();
+  }
+
+  // ── JSON 임시저장 / 불러오기 ───────────────────────────────
+  let isDirty = false;
+
+  function updateFab() {
+    const scrolled = window.scrollY > 80;
+    const fab = document.getElementById('fabSave');
+    if (fab) fab.classList.toggle('visible', isDirty && scrolled);
+  }
+
+  window.addEventListener('scroll', updateFab, { passive: true });
+
+  function markDirty() {
+    isDirty = true;
+    document.getElementById('jsonSaveBtn').classList.add('dirty');
+    updateFab();
+  }
+  function markClean() {
+    isDirty = false;
+    document.getElementById('jsonSaveBtn').classList.remove('dirty');
+    updateFab();
+  }
+
+  function buildSnapshot() {
+    return {
+      chaName:    document.getElementById('chaName').value,
+      testerName: document.getElementById('testerName').value,
+      testDate:   document.getElementById('testDate').value,
+      testTitle:  document.getElementById('testTitle').value,
+      testDesc:   document.getElementById('testDesc').value,
+      perTcDate,
+      customFields,
+      testCases,
+      tcCounter,
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function saveToJSON() {
+    const data = buildSnapshot();
+    const cha    = data.chaName    || '작업파일';
+    const tester = data.testerName || '';
+    const date   = (data.testDate  || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+    const now    = new Date();
+    const hms    = String(now.getHours()).padStart(2,'0')
+                 + String(now.getMinutes()).padStart(2,'0')
+                 + String(now.getSeconds()).padStart(2,'0');
+    const filename = `${cha}_테스트결과서_${tester}_${date}_${hms}.json`;
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    markClean();
+    dismissWelcome();
+    showToast('💾 임시저장 완료!');
+  }
+
+  function restoreSnapshot(data) {
+    if (data.chaName)    document.getElementById('chaName').value    = data.chaName;
+    if (data.testerName) document.getElementById('testerName').value = data.testerName;
+    if (data.testDate)   document.getElementById('testDate').value   = data.testDate;
+    if (data.testTitle)  document.getElementById('testTitle').value  = data.testTitle;
+    if (data.testDesc)   document.getElementById('testDesc').value   = data.testDesc;
+    if (Array.isArray(data.testCases)) {
+      testCases.length = 0;
+      testCases.push(...data.testCases);
+    }
+    if (data.tcCounter) tcCounter = data.tcCounter;
+    if (typeof data.perTcDate === 'boolean') {
+      perTcDate = data.perTcDate;
+      document.getElementById('perTcDateToggle').checked = perTcDate;
+    }
+    customFields = Array.isArray(data.customFields) ? data.customFields : [];
+    testCases.forEach(tc => { if (!tc.customValues) tc.customValues = {}; });
+    renderCustomFieldsMgr();
+    updateFilenameHint();
+    renderList();
+    markClean();
+    dismissWelcome();
+    showToast(`📂 불러오기 완료! (${(data.testCases || []).length}개 케이스)`);
+  }
+
+  function openJSON() {
+    document.getElementById('jsonFileInput').click();
+  }
+
+  function onJsonFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try { restoreSnapshot(JSON.parse(ev.target.result)); }
+      catch(err) { showToast('❌ JSON 파일을 읽을 수 없습니다.', true); }
+    };
+    reader.readAsText(file);
+  }
+
+  function dismissFirstVisit() {
+    const fvb = document.getElementById('firstVisitBanner');
+    const wb  = document.getElementById('welcomeBanner');
+    if (fvb) { fvb.style.opacity = '0'; fvb.style.transform = 'translateY(-8px)'; setTimeout(() => fvb.remove(), 250); }
+    if (wb)  { wb.style.display = 'flex'; }
+  }
+
+  function dismissWelcome() {
+    const banner = document.getElementById('welcomeBanner');
+    if (!banner) return;
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateY(-8px)';
+    setTimeout(() => banner.remove(), 250);
+    document.querySelector('.main').classList.remove('dimmed');
+  }
+
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty && testCases.length > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  function showToast(msg, isError, duration) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isError ? ' error' : '');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), duration || 3500);
+  }
+</script>
+</body>
+</html>
