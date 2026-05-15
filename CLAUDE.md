@@ -14,11 +14,33 @@ CNA(Change) 단위 테스트 결과서를 `.xlsx` 파일로 생성한다 (Kbank 
 | `guide.html` | 사용 가이드 — Netlify 배포용 (`https://k-test-result-generator-guide.netlify.app`) |
 | `guide-images/` | 가이드용 원본 스크린샷 (guide.html에 base64 인라인 포함됨 — 배포 불필요) |
 
-- **사내망·사외용 두 파일은 항상 같이 수정한다.** 기능/버그/스타일 변경 시 양쪽 동시 적용.
+- **작업 순서**: 수정 요청 → `k_test_result_generator_cdn.html`에만 먼저 반영 → 브라우저에서 확인 요청 → 사용자 테스트 OK → `k_test_result_generator.html`에도 동일 반영 → git push (자동 배포)
+- **사내망·사외용 두 파일은 항상 같이 수정한다.** (단, 사용자 확인 후 사내망 버전 반영 — 위 작업 순서 참고)
 - CDN 버전 재생성 방법: **반드시 Python 스크립트 사용** — 단순 번들 교체만 하면 CDN 전용 기능(가이드 버튼, 첫 방문 배너)이 소실됨. 스크립트가 ① ExcelJS 번들→CDN 교체 ② 가이드 버튼 CSS/HTML 주입 ③ 첫 방문 배너 HTML 주입 ④ localStorage JS 주입 ⑤ `dismissFirstVisit()` 함수 주입을 모두 자동 처리.
 - 사내망 버전에는 `@import url('.../pretendard.css')` 없음 → 폰트 폴백: `'Pretendard', sans-serif` (시스템 기본 폰트)
 - **사용 가이드 버튼**은 CDN 버전 헤더에만 존재 (`📖 사용 가이드` → `https://k-test-result-generator-guide.netlify.app`, `target="_blank"`). 사내망 버전에는 없음.
-- `guide.html` 수정 시 Netlify Drop(`https://app.netlify.com/drop`)에 `guide.html` 단일 파일만 올리면 됨 (이미지 base64 인라인).
+- ~~`guide.html` 수정 시 Netlify Drop에 단일 파일 업로드~~ → **GitHub push로 자동 배포** (아래 배포 섹션 참고)
+
+## 배포
+
+GitHub 레포: `https://github.com/thinkanddoit/k-test-result-generator` (public, branch: `main`)
+
+**수정 후 배포 방법:**
+```bash
+git add .
+git commit -m "커밋 메시지"
+git push origin main
+```
+push 하면 아래 두 Netlify 사이트가 **자동으로 동시 배포**됨.
+
+| Netlify 사이트 | 소스 파일 | Build command |
+|----------------|-----------|---------------|
+| 앱 (사외용) | `k_test_result_generator_cdn.html` | `mkdir -p dist && cp k_test_result_generator_cdn.html dist/index.html` |
+| 가이드 | `guide.html` | `mkdir -p dist && cp guide.html dist/index.html` |
+
+- Publish directory: `dist` (양쪽 동일)
+- 회사 내부망에서 Netlify Drop 업로드가 차단되어 GitHub 연동 방식으로 전환함
+- push 시 git 인증: Personal Access Token 필요 (`repo` 또는 `Contents: Read and write` 권한)
 
 ## 사용 가이드 (`guide.html`)
 
