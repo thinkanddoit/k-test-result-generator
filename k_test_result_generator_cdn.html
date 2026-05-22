@@ -882,7 +882,7 @@
     return val === 0 ? Infinity : val;
   }
 
-  function resizeDataUrl(dataUrl, type, callback) {
+  function resizeDataUrl(dataUrl, type, callback, onError) {
     const MAX_IMG_PX = getMaxImgPx();
     const img = new Image();
     img.onload = () => {
@@ -895,6 +895,7 @@
       canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
       callback(canvas.toDataURL(type === 'image/png' ? 'image/png' : 'image/jpeg', 0.88), nw, nh);
     };
+    img.onerror = () => { if (onError) onError(); };
     img.src = dataUrl;
   }
 
@@ -935,10 +936,17 @@
     clipboardDropSucceeded = false;
   });
 
+  const SECURITY_BLOCK_TOAST = '🔒 이미지를 읽을 수 없어요. 계좌번호가 포함된 이미지는 당행 정책에 의해 업로드가 제한될 수 있어요.\n📋 Ctrl+V 붙여넣기 방식으로 시도해 보세요.';
+
   function handleFiles(files, id) {
     const tc = testCases.find(t => t.id === id);
     if (!tc) return;
     let loaded = 0;
+    const onFileError = () => {
+      loaded++;
+      showToast(SECURITY_BLOCK_TOAST, true, 8000);
+      if (loaded === files.length) renderList();
+    };
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = e => {
@@ -951,8 +959,9 @@
           if (nw > nh) {
             showToast(`⚠️ "${file.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000);
           }
-        });
+        }, onFileError);
       };
+      reader.onerror = onFileError;
       reader.readAsDataURL(file);
     });
   }
