@@ -918,29 +918,24 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function handleFiles(files, id) {
     const tc = testCases.find(t => t.id === id);
     if (!tc) return;
-    let loaded = 0;
-    const onFileError = () => {
-      loaded++;
-      showToast(SECURITY_BLOCK_TOAST, true, 8000);
-      if (loaded === files.length) renderList();
-    };
-    files.forEach(file => {
+    let idx = 0;
+    function processNext() {
+      if (idx >= files.length) { renderList(); return; }
+      const file = files[idx++];
       const reader = new FileReader();
       reader.onload = e => {
         resizeDataUrl(e.target.result, file.type, (dataUrl, nw, nh) => {
           tc.images.push({ name: file.name, dataUrl, type: file.type, nw, nh });
-          loaded++;
           markDirty();
-          if (loaded === files.length) renderList();
-          else renderImgs(id);
-          if (nw > nh) {
-            showToast(`⚠️ "${file.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000);
-          }
-        }, onFileError);
+          renderImgs(id);
+          if (nw > nh) showToast(`⚠️ "${file.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000);
+          processNext();
+        }, () => { showToast(SECURITY_BLOCK_TOAST, true, 8000); processNext(); });
       };
-      reader.onerror = onFileError;
+      reader.onerror = () => { showToast(SECURITY_BLOCK_TOAST, true, 8000); processNext(); };
       reader.readAsDataURL(file);
-    });
+    }
+    processNext();
   }
 
   const dragState = { tcId: null, fromIdx: null };
