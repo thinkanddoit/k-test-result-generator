@@ -11,14 +11,14 @@ CNA(Change) 단위 테스트 결과서를 `.xlsx` 파일로 생성한다 (Kbank 
 |------|------|
 | `k_test_result_generator.html` | 사내망용 — ExcelJS 번들 인라인, Pretendard CDN 없음 (완전 오프라인) |
 | `k_test_result_generator_cdn.html` | 사외용 — ExcelJS CDN + Pretendard CDN + 사용 가이드 버튼 + 첫 방문 배너 |
-| `guide.html` | 사용 가이드 — Netlify 배포용 (`https://k-test-result-generator-guide.netlify.app`) |
+| `guide.html` | 사용 가이드 — Netlify 배포용 (`https://k-test-result-generator.web.app/guide.html`) |
 | `guide-images/` | 가이드용 원본 스크린샷 (guide.html에 base64 인라인 포함됨 — 배포 불필요) |
 
-- **작업 순서**: 수정 요청 → `k_test_result_generator_cdn.html`에만 먼저 반영 → `open k_test_result_generator_cdn.html`으로 브라우저 자동 오픈 → 사용자 테스트 OK → `k_test_result_generator.html`에도 동일 반영 → git push (자동 배포)
+- **작업 순서**: 수정 요청 → `k_test_result_generator_cdn.html`에만 먼저 반영 → `open k_test_result_generator_cdn.html`으로 브라우저 자동 오픈 → 사용자 테스트 OK → `k_test_result_generator.html`에도 동일 반영 → **push는 사용자가 별도 요청할 때만** (자동으로 push하지 않음)
 - **사내망·사외용 두 파일은 항상 같이 수정한다.** (단, 사용자 확인 후 사내망 버전 반영 — 위 작업 순서 참고)
 - CDN 버전 재생성 방법: **반드시 Python 스크립트 사용** — 단순 번들 교체만 하면 CDN 전용 기능(가이드 버튼, 첫 방문 배너)이 소실됨. 스크립트가 ① ExcelJS 번들→CDN 교체 ② 가이드 버튼 CSS/HTML 주입 ③ 첫 방문 배너 HTML 주입 ④ localStorage JS 주입 ⑤ `dismissFirstVisit()` 함수 주입을 모두 자동 처리.
 - 사내망 버전에는 `@import url('.../pretendard.css')` 없음 → 폰트 폴백: `'Pretendard', sans-serif` (시스템 기본 폰트)
-- **사용 가이드 버튼**은 CDN 버전 헤더에만 존재 (`📖 사용 가이드` → `https://k-test-result-generator-guide.netlify.app`, `target="_blank"`). 사내망 버전에는 없음.
+- **사용 가이드 버튼**은 CDN 버전 헤더에만 존재 (`📖 사용 가이드` → `https://k-test-result-generator.web.app/guide.html`, `target="_blank"`). 사내망 버전에는 없음.
 - ~~`guide.html` 수정 시 Netlify Drop에 단일 파일 업로드~~ → **GitHub push로 자동 배포** (아래 배포 섹션 참고)
 
 ## 배포
