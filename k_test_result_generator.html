@@ -260,6 +260,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   .img-previews { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
   .img-drag-hint { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); margin-top: 7px; }
+  .img-toolbar { display: none; justify-content: flex-end; margin-top: 10px; }
+  .img-reverse-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 11px; font-size: 12px; font-weight: 500; color: var(--text); cursor: pointer; }
+  .img-reverse-btn:hover { border-color: var(--accent); color: var(--accent2); }
   .img-thumb { position: relative; width: 110px; height: 196px; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
   .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .img-thumb-del {
@@ -808,6 +811,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
               <div class="dropzone-text"><span>클릭하거나 이미지를 드래그</span>하세요</div>
               <div class="dropzone-text" style="margin-top:4px;font-size:11px">📋 이미지 복사 후 <kbd style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg)">Ctrl+V</kbd> 로 붙여넣기도 가능해요</div>
             </div>
+            <div class="img-toolbar" id="img-toolbar-${tc.id}">
+              <button type="button" class="img-reverse-btn" onclick="reverseImgs(${tc.id})">↕ 순서 뒤집기</button>
+            </div>
             <div class="img-previews" id="imgs-${tc.id}"></div>
             <div class="img-drag-hint" id="drag-hint-${tc.id}" style="display:none">
               <span id="drag-hint-order-${tc.id}">↔ 사진을 드래그하면 순서를 바꿀 수 있어요</span>
@@ -863,6 +869,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const MAX_IMG_PX = getMaxImgPx();
     const img = new Image();
     img.onload = () => {
+     try {
       const w = img.naturalWidth, h = img.naturalHeight;
       if (w <= MAX_IMG_PX && h <= MAX_IMG_PX) { callback(dataUrl, w, h); return; }
       const scale = MAX_IMG_PX / Math.max(w, h);
@@ -871,6 +878,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       canvas.width = nw; canvas.height = nh;
       canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
       callback(canvas.toDataURL(type === 'image/png' ? 'image/png' : 'image/jpeg', 0.88), nw, nh);
+     } catch (err) { if (onError) onError(); }
     };
     img.onerror = () => { if (onError) onError(); };
     img.src = dataUrl;
@@ -918,22 +926,47 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function handleFiles(files, id) {
     const tc = testCases.find(t => t.id === id);
     if (!tc) return;
+    if (!files.length) return;
+    const results = new Array(files.length);
     let idx = 0;
-    function processNext() {
-      if (idx >= files.length) { renderList(); return; }
-      const file = files[idx++];
+
+    function readOne(file, isRetry, onDone) {
       const reader = new FileReader();
       reader.onload = e => {
         resizeDataUrl(e.target.result, file.type, (dataUrl, nw, nh) => {
-          tc.images.push({ name: file.name, dataUrl, type: file.type, nw, nh });
-          markDirty();
-          renderImgs(id);
-          if (nw > nh) showToast(`⚠️ "${file.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000);
-          processNext();
-        }, () => { showToast(SECURITY_BLOCK_TOAST, true, 8000); processNext(); });
+          onDone({ name: file.name, dataUrl, type: file.type, nw, nh });
+        }, () => {
+          if (isRetry) { onDone(null); return; }
+          setTimeout(() => readOne(file, true, onDone), 400);
+        });
       };
-      reader.onerror = () => { showToast(SECURITY_BLOCK_TOAST, true, 8000); processNext(); };
+      reader.onerror = () => {
+        if (isRetry) { onDone(null); return; }
+        setTimeout(() => readOne(file, true, onDone), 400);
+      };
       reader.readAsDataURL(file);
+    }
+
+    function processNext() {
+      if (idx >= files.length) {
+        results.forEach(r => tc.images.push(r));
+        markDirty();
+        renderImgs(id);
+        results.forEach(r => { if (r.nw > r.nh) showToast(`⚠️ "${r.name}"은 가로형 이미지라 셀 비율(세로)과 맞지 않아 엑셀에서 깨져 보일 수 있어요.`, true, 6000); });
+        renderList();
+        return;
+      }
+      const file = files[idx];
+      readOne(file, false, result => {
+        if (!result) {
+          showToast(`${SECURITY_BLOCK_TOAST}\n"${file.name}" 첨부 실패로 이번에 선택한 이미지 ${files.length}장이 모두 첨부되지 않았어요.`, true, 9000);
+          renderList();
+          return;
+        }
+        results[idx] = result;
+        idx++;
+        processNext();
+      });
     }
     processNext();
   }
@@ -988,6 +1021,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (hint) hint.style.display = tc.images.length > 0 ? '' : 'none';
     const orderHint = document.getElementById('drag-hint-order-' + id);
     if (orderHint) orderHint.style.display = tc.images.length > 1 ? '' : 'none';
+    const toolbar = document.getElementById('img-toolbar-' + id);
+    if (toolbar) toolbar.style.display = tc.images.length > 1 ? 'flex' : 'none';
+  }
+
+  function reverseImgs(tcId) {
+    const tc = testCases.find(t => t.id === tcId);
+    if (!tc || tc.images.length < 2) return;
+    tc.images.reverse();
+    markDirty();
+    renderImgs(tcId);
   }
 
   function removeImg(tcId, imgIdx) {
